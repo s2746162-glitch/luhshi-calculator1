@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Калькулятор процессуальных сроков</title><base href="http://www.best_culculator.html"> 
+<style>
+  body { font-family: -apple-system, 'Segoe UI', Arial, sans-serif; background: #f4f6f9; margin: 0; padding: 30px 15px; color: #1a2433; }
+  .card { max-width: 560px; margin: 0 auto; background: #fff; border-radius: 14px; padding: 28px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: #667; font-size: 14px; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 5px; }
+  select, input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #ccd3dd; border-radius: 8px; font-size: 15px; background: #fff; }
+  button { width: 100%; margin-top: 20px; padding: 13px; background: #2c5ce6; color: #fff; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
+  button:hover { background: #1f4ac4; }
+  .result { margin-top: 20px; padding: 18px; border-radius: 10px; background: #eef4ff; border: 1px solid #c9d9ff; display: none; }
+  .result .date { font-size: 26px; font-weight: 700; color: #1a3fb8; margin: 6px 0; }
+  .result .note { font-size: 13px; color: #445; margin-top: 8px; line-height: 1.5; }
+  .copy { margin-top: 12px; padding: 8px 14px; font-size: 13px; background: #fff; color: #2c5ce6; border: 1px solid #2c5ce6; border-radius: 6px; cursor: pointer; }
+  .copy:hover { background: #f0f4ff; }
+  footer { max-width: 560px; margin: 18px auto 0; font-size: 12px; color: #889; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>⚖️ Калькулятор процессуальных сроков</h1>
+  <div class="sub">Срок начинает течь со дня, следующего за событием (ст. 107 ГПК, ст. 113 АПК)</div>
+
+  <label>Дата события (вынесение решения, получение акта и т. д.)</label>
+  <input type="date" id="startDate">
+
+  <label>Срок</label>
+  <select id="term" onchange="toggleCustom()">
+    <option value="1|month|civil">Апелляционная жалоба на решение — 1 месяц (ст. 321 ГПК)</option>
+    <option value="15|day|civil">Апелляционная/частная жалоба на определение — 15 дней (ст. 332 ГПК)</option>
+    <option value="7|day|civil">Отмена заочного решения — 7 дней (ст. 237 ГПК)</option>
+    <option value="3|month|civil">Надзорная жалоба — 3 месяца (ст. 391.2 ГПК)</option>
+    <option value="3|month|civil">Пересмотр по вновь открывшимся обстоятельствам — 3 месяца (ст. 392 ГПК)</option>
+    <option value="1|month|arb">Апелляционная жалоба — 1 месяц (ст. 259 АПК)</option>
+    <option value="2|month|arb">Кассационная жалоба — 2 месяца (ст. 276 АПК)</option>
+    <option value="3|month|arb">Пересмотр по новым обстоятельствам — 3 месяца (ст. 311 АПК)</option>
+    <option value="30|day|civil">Ответ на досудебную претензию — 30 дней (ч. 5 ст. 4 АПК)</option>
+    <option value="custom|day|civil">Свой срок...</option>
+  </select>
+
+  <div id="customBlock" style="display:none">
+    <label>Количество дней</label>
+    <input type="number" id="customDays" min="1" value="10">
+  </div>
+
+  <label>Как считать нерабочие дни</label>
+  <select id="mode">
+    <option value="civil">ГПК: календарные дни, последний день переносится на рабочий (ст. 108 ГПК)</option>
+    <option value="arb">АПК/КАС: нерабочие дни из срока исключаются (ст. 113 АПК)</option>
+  </select>
+
+  <button onclick="calc()">Рассчитать</button>
+
+  <div class="result" id="result">
+    <div class="sub" id="resLabel" style="margin:0"></div>
+    <div class="date" id="resDate"></div>
+    <div class="note" id="resNote"></div>
+    <button class="copy" onclick="copyResult()">Скопировать результат</button>
+  </div>
+</div>
+<footer>Праздники учтены по нерабочим дням ТК РФ на 2026–2027 гг. без переносов выходных. Сверяйте с производственным календарём текущего года.</footer>
+
+<script>
+// Нерабочие праздничные дни (ст. 112 ТК РФ). Переносы выходных по постановлению
+// Правительства добавьте в этот список вручную по производственному календарю.
+const HOLIDAYS = [
+  '2026-01-01','2026-01-02','2026-01-03','2026-01-04','2026-01-05','2026-01-06','2026-01-07','2026-01-08',
+  '2026-02-23','2026-03-08','2026-05-01','2026-05-09','2026-06-12','2026-11-04',
+  '2027-01-01','2027-01-02','2027-01-03','2027-01-04','2027-01-05','2027-01-06','2027-01-07','2027-01-08',
+  '2027-02-23','2027-03-08','2027-05-01','2027-05-09','2027-06-12','2027-11-04'
+];
+const holidaySet = new Set(HOLIDAYS);
+
+const WEEKDAYS = ['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+
+function isoDate(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function isNonWorking(d) {
+  const dow = d.getDay();
+  return dow === 0 || dow === 6 || holidaySet.has(isoDate(d));
+}
+function nextWorking(d) {
+  const x = new Date(d);
+  while (isNonWorking(x)) x.setDate(x.getDate() + 1);
+  return x;
+}
+function fmt(d) {
+  return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + ' г. (' + WEEKDAYS[d.getDay()] + ')';
+}
+function toggleCustom() {
+  document.getElementById('customBlock').style.display =
+    document.getElementById('term').value.startsWith('custom') ? 'block' : 'none';
+}
+
+function calc() {
+  const startVal = document.getElementById('startDate').value;
+  if (!startVal) { alert('Выберите дату события'); return; }
+
+  const start = new Date(startVal + 'T00:00:00');
+  const day0 = new Date(start);          // срок течёт со следующего дня
+  day0.setDate(day0.getDate() + 1);
+
+  const termValue = document.getElementById('term').value;
+  const mode = document.getElementById('mode').value;
+
+  let amount, unit, label;
+  if (termValue.startsWith('custom')) {
+    amount = parseInt(document.getElementById('customDays').value);
+    unit = 'day';
+    label = 'Свой срок (' + amount + ' дн.)';
+    if (!amount || amount < 1) { alert('Укажите количество дней'); return; }
+  } else {
+    const p = termValue.split('|');
+    amount = parseInt(p[0]);
+    unit = p[1];
+    label = document.getElementById('term').selectedOptions[0].textContent;
+    // для типовых сроков АПК автоматически включаем режим "исключать нерабочие"
+    const effectiveMode = (p[2] === 'arb') ? 'arb' : mode;
+    return finish(day0, amount, unit, effectiveMode, label);
+  }
+  finish(day0, amount, unit, mode, label);
+}
+
+function finish(day0, amount, unit, mode, label) {
+  let end = new Date(day0), note = '';
+
+  if (unit === 'month') {
+    end.setMonth(end.getMonth() + amount);
+    const raw = new Date(end);
+    if (isNonWorking(end)) {
+      end = nextWorking(end);
+      note = 'Последний день срока выпал на нерабочий день (' + fmt(raw) +
+             ') — по ст. 108 ГПК / ч. 3 ст. 114 АПК он переносится на первый рабочий день.';
+    }
+  } else if (mode === 'arb') {
+    let counted = 0;
+    while (counted < amount) {
+      if (!isNonWorking(end)) counted++;
+      if (counted < amount) end.setDate(end.getDate() + 1);
+    }
+    note = 'Срок исчислен без нерабочих дней (ч. 3 ст. 113 АПК).';
+  } else {
+    end.setDate(end.getDate() + amount - 1);
+    const raw = new Date(end);
+    if (isNonWorking(end)) {
+      end = nextWorking(end);
+      note = 'Последний день срока — нерабочий (' + fmt(raw) +
+             '), он переносится на первый рабочий день (ст. 108 ГПК).';
+    }
+  }
+
+  const res = document.getElementById('result');
+  res.style.display = 'block';
+  document.getElementById('resLabel').textContent = 'Дедлайн: ' + label.split('(')[0].trim();
+  document.getElementById('resDate').textContent = fmt(end);
+  document.getElementById('resNote').textContent = (note ? note + ' ' : '') +
+    'Срок начинает течь со дня, следующего за событием. Перед подачей документа сверьте расчёт с нормой — у отдельных сроков есть особенности.';
+
+  res.dataset.text = 'Дедлайн: ' + fmt(end) + ' — ' + label +
+    '. Рассчитано калькулятором процессуальных сроков.';
+}
+
+function copyResult() {
+  navigator.clipboard.writeText(document.getElementById('result').dataset.text)
+    .then(() => alert('Скопировано!'));
+}
+</script>
+</body>
+</html>
